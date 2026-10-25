@@ -38,6 +38,7 @@ jobs:
           exit 1
 
       - name: tailscale up without authkey (login flow -> expect login URL)
+        if: env.TS_AUTHKEY == ''
         shell: pwsh
         run: |
           $job = Start-Job -ScriptBlock { Set-Location $using:PWD; .\tailscale.exe up 2>&1 }
