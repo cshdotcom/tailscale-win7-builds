@@ -1,0 +1,53 @@
+name: test-win7-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+env:
+  TS_AUTHKEY: ${{ secrets.TS_AUTHKEY }}
+
+jobs:
+  smoke:
+    name: Smoke test (startup + control-plane login)
+    runs-on: windows-latest
+    steps:
+      - name: Download release assets (v1.0.0)
+        run: |
+          curl.exe -L -o tailscaled.exe https://github.com/cshdotcom/tailscale-win7-builds/releases/download/v1.0.0/tailscaled-win7-legacy.exe
+          curl.exe -L -o tailscale.exe https://github.com/cshdotcom/tailscale-win7-builds/releases/download/v1.0.0/tailscale-win7-legacy.exe
+          dir *.exe
+
+      - name: Verify binary runs (tailscale version)
+        run: .\tailscale.exe version
+
+      - name: Start tailscaled (userspace networking, mem state)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath ".\tailscaled.exe" -ArgumentList "--state=mem:", "--tun=userspace-networking" -WindowStyle Hidden -PassThru
+          Start-Sleep -Seconds 6
+          Write-Host "tailscaled PID: $($p.Id) exited: $($p.HasExited)"
+
+      - name: tailscale status (expect Logged out)
+        run: .\tailscale.exe status
+
+      - name: tailscale up --authkey (login to control plane)
+        if: env.TS_AUTHKEY != ''
+        shell: pwsh
+        run: |
+          .\tailscale.exe up --authkey=$env:TS_AUTHKEY
+          Start-Sleep -Seconds 5
+          .\tailscale.exe status
+
+      - name: tailscale ping self (networking sanity)
+        if: env.TS_AUTHKEY != ''
+        run: |
+          $ip = (.\tailscale.exe status --json | ConvertFrom-Json).Self.TailscaleIPs[0]
+          Write-Host "Self IP: $ip"
+          .\tailscale.exe ping $ip
+
+      - name: Stop tailscaled
+        if: always()
+        shell: pwsh
+        run: Get-Process tailscaled -ErrorAction SilentlyContinue | Stop-Process -Force
