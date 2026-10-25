@@ -71,3 +71,18 @@ go build -o tailscale.exe ./cmd/tailscale
 - 闪退/找不到入口点 = 运行时 API 缺失（go-legacy-win7 已覆盖已知项，如仍有请反馈）
 
 已知运行时依赖：wintun 驱动（tailscaled 首次启动自动下载安装，Win7 x64 受支持）。
+
+## GitHub Actions 实测结果（2026-10-25，windows-latest runner）
+
+Workflow：`.github/workflows/test-win7-build.yml`（push / 手动触发）
+
+| 步骤 | 结果 |
+|---|---|
+| `tailscale version` | ✅ `1.105.0-dev20261025` / go1.27.2（产物可执行） |
+| 启动 tailscaled（userspace 模式） | ✅ PID 存活，无崩溃 |
+| `tailscale status` | ✅ `Logged out.`（CLI↔守护进程通信正常） |
+| `tailscale up`（无 key） | ✅ 获取到 `https://login.tailscale.com/a/...`（控制平面连接正常，登录流程可发起） |
+| `tailscale up --authkey` + `ping` | ⏳ 需要仓库 Secret `TS_AUTHKEY` 才执行 |
+
+启用真实账号登录测试：Tailscale 控制台 → Settings → Keys → 生成 Auth Key → 填入仓库
+`Settings → Secrets and variables → Actions → TS_AUTHKEY`，再重新运行 workflow。
