@@ -30,9 +30,31 @@ jobs:
           Write-Host "tailscaled PID: $($p.Id) exited: $($p.HasExited)"
 
       - name: tailscale status (expect Logged out)
-        run: .\tailscale.exe status
+        shell: pwsh
+        run: |
+          $out = .\tailscale.exe status 2>&1 | Out-String
+          Write-Host $out
+          if ($out -match "Logged out") { Write-Host "PASS: CLI connected to tailscaled; logged out as expected"; exit 0 }
+          exit 1
 
-      - name: tailscale up --authkey (login to control plane)
+      - name: tailscale up without authkey (login flow -> expect login URL)
+        shell: pwsh
+        run: |
+          $job = Start-Job -ScriptBlock { Set-Location $using:PWD; .\tailscale.exe up 2>&1 }
+          if (Wait-Job $job -Timeout 20) {
+            $out = Receive-Job $job | Out-String
+            Write-Host $out
+            if ($out -match "login\.tailscale\.com") { Write-Host "PASS: login flow initiated; control-plane URL obtained"; exit 0 }
+            exit 1
+          } else {
+            Stop-Job $job
+            $out = Receive-Job $job | Out-String
+            Write-Host $out
+            if ($out -match "login\.tailscale\.com") { Write-Host "PASS: login flow initiated; control-plane URL obtained"; exit 0 }
+            exit 1
+          }
+
+      - name: tailscale up --authkey (real login to control plane)
         if: env.TS_AUTHKEY != ''
         shell: pwsh
         run: |
